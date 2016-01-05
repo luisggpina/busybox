@@ -101,7 +101,7 @@ fi
 
 implemented=$(
 	printf "busybox " # always implemented
-	"$bindir/busybox" 2>&1 |
+	"$BB" 2>&1 |
 	while read line; do
 		if [ x"$line" = x"Currently defined functions:" ]; then
 			xargs | sed 's/,//g'
@@ -117,19 +117,19 @@ fi
 
 # Populate a directory with links to all busybox applets
 
-LINKSDIR="$bindir/runtest-tempdir-links"
+export LINKSDIR="$bindir/runtest-tempdir-links"
 
 # Comment this line out if you have put a different binary in $LINKSDIR
 # (say, a "standard" tool's binary) in order to run tests against it:
 rm -rf "$LINKSDIR" 2>/dev/null
 
 mkdir "$LINKSDIR" 2>/dev/null
-for i in $implemented; do
-	# Note: if $LINKSDIR/applet exists, we do not overwrite it.
-	# Useful if one wants to run tests against a standard utility,
-	# not an applet.
-	ln -s "$bindir/busybox" "$LINKSDIR/$i" 2>/dev/null
-done
+ln -s "$BB" "$LINKSDIR/busybox" 2>/dev/null
+## for i in $implemented; do
+## 	# Note: if $LINKSDIR/applet exists, we do not overwrite it.
+## 	# Useful if one wants to run tests against a standard utility,
+## 	# not an applet.
+## 	#ln -s "$bindir/busybox" "$LINKSDIR/$i" 2>/dev/null
 
 # Set up option flags so tests can be selective.
 export OPTIONFLAGS=:$(
@@ -139,6 +139,24 @@ export OPTIONFLAGS=:$(
 
 status=0
 for applet in $applets; do
+
+  ln -s "$BB" "$LINKSDIR/busybox" 2>/dev/null
+  if [ x"$applet" != x"busybox" ]; then
+      echo "#!/bin/bash"              >  "$LINKSDIR/$applet"
+      echo "cmd=''"                   >> "$LINKSDIR/$applet"
+      echo "for var in \"\$@\""       >> "$LINKSDIR/$applet"
+      echo "do"                       >> "$LINKSDIR/$applet"
+      echo "  cmd=\"\$cmd '\$var'\""  >> "$LINKSDIR/$applet"
+      echo "done"                     >> "$LINKSDIR/$applet"
+      if [ x"$VX" = x"1" ]; then
+          echo "eval \"`which vx` $BBS -- $applet \$cmd\"" >> "$LINKSDIR/$applet"
+      else
+          echo "eval \"$BBS $applet \$cmd\"" >> "$LINKSDIR/$applet"
+      fi
+  fi
+  chmod a+x "$LINKSDIR/$applet"
+
+
 	# Any old-style tests for this applet?
 	if [ -d "$tsdir/$applet" ]; then
 		run_oldstyle_applet_tests "$applet" || status=1
@@ -160,6 +178,8 @@ for applet in $applets; do
 		total_failed=$((total_failed + rc))
 		test $rc -ne 0 && status=1
 	fi
+
+  rm "$LINKSDIR/$applet"
 done
 
 # Leaving the dir makes it somewhat easier to run failed test by hand
