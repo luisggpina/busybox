@@ -117,7 +117,6 @@ testing()
       # This way, afl generates better results
       # This code may fail and break parameters, but that's ok
       cmd=$(echo -ne "$2" | sed "s/ input\([^a-zA-Z0-9]\)/ @@\1/g")
-      cmd=$(echo -ne "$2" | sed "s/ input$/ @@/g")
       echo $cmd
       rm -rf afl-out
       rm -rf afl-in
