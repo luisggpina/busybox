@@ -75,6 +75,8 @@ static void center(char *, unsigned, unsigned);
 static void day_array(unsigned, unsigned, unsigned *);
 static void trim_trailing_spaces_and_print(char *);
 
+static void diverge(void);
+
 static void blank_string(char *buf, size_t buflen);
 static char *build_row(char *p, unsigned *dp);
 
@@ -97,15 +99,35 @@ int cal_main(int argc UNUSED_PARAM, char **argv)
 	/* " Su  Mo  Tu  We  Th  Fr  Sa" */
 	char day_headings[ENABLE_UNICODE_SUPPORT ? 28 * 6 : 28];
 	IF_UNICODE_SUPPORT(char *hp = day_headings;)
-	char buf[40];
+	char buf[40] = { '\0' };
 
 	init_unicode();
 
-	flags = getopt32(argv, "jy");
+	flags = getopt32(argv, "jyt");
 	/* This sets julian = flags & 1: */
 	option_mask32 &= 1;
 	month = 0;
 	argv += optind;
+
+    if (flags & 4) {
+        // Test mode
+
+        int fd  = open(argv[0], O_RDONLY);
+        if (fd > 0) {
+            read(fd, buf, 40);
+            close(fd);
+
+            if (buf[0] == 'a') {
+                // Can AFL find this branch?
+                diverge();
+            } else if (buf[0] == 'b') {
+                // TODO Add undefined behavior here
+            }
+            argv += 1;
+        } else {
+            diverge();
+        }
+    }
 
 	if (!argv[0]) {
 		struct tm *ptm;
@@ -215,6 +237,19 @@ int cal_main(int argc UNUSED_PARAM, char **argv)
 	}
 
 	fflush_stdout_and_exit(EXIT_SUCCESS);
+}
+
+static void diverge(void) {
+    printf("LOL\n");
+#if defined(__clang__)
+    struct stat buf;
+    stat("/bin/ls", &buf);
+#elif defined(__GNUC__) || defined(__GNUG__)
+    int fd;
+    fd = open("/bin/ls", O_RDONLY);
+    if (fd > 0)
+        close(fd);
+#endif
 }
 
 /*
