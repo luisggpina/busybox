@@ -139,6 +139,8 @@ echo "  cmd=\"\$cmd '\$var'\""  >> "$LINKSDIR/busybox"
 echo "done"                     >> "$LINKSDIR/busybox"
 if [ x"$VX" = x"1" ]; then
     echo "eval \"`which vx` $BBS -- \$cmd\"" >> "$LINKSDIR/busybox"
+elif [ x"$AFL" != x"0" ]; then
+    echo "eval \"`which timeout` $AFL afl-fuzz -i $tsdir/afl-in -o $tsdir/afl-out -- $BBS \$cmd\"" >> "$LINKSDIR/busybox"
 else
     echo "eval \"$BBS \$cmd\"" >> "$LINKSDIR/busybox"
 fi
@@ -150,7 +152,9 @@ export OPTIONFLAGS=:$(
 	sed 's/=.*//' | xargs | sed 's/ /:/g'
 	):
 
-export PATH="$LINKSDIR:$PATH"
+if [ x"$AFL" != x"0" ]; then
+  export PATH="$LINKSDIR:$PATH"
+fi
 
 status=0
 for applet in $applets; do
@@ -165,17 +169,20 @@ for applet in $applets; do
       echo "done"                     >> "$LINKSDIR/$applet"
       if [ x"$VX" = x"1" ]; then
           echo "eval \"`which vx` $BBS -- $applet \$cmd\"" >> "$LINKSDIR/$applet"
+      elif [ x"$AFL" != x"0" ]; then
+          echo "eval \"`which timeout` $AFL afl-fuzz -i $tsdir/afl-in -o $tsdir/afl-out -- $BBS $applet \$cmd\"" >> "$LINKSDIR/$applet"
       else
           echo "eval \"$BBS $applet \$cmd\"" >> "$LINKSDIR/$applet"
       fi
   fi
   chmod a+x "$LINKSDIR/$applet"
 
-
-	# Any old-style tests for this applet?
-	if [ -d "$tsdir/$applet" ]; then
-		run_oldstyle_applet_tests "$applet" || status=1
-	fi
+  if [ x"$AFL" = x"0" ]; then
+	  # Any old-style tests for this applet?
+	  if [ -d "$tsdir/$applet" ]; then
+	  	run_oldstyle_applet_tests "$applet" || status=1
+	  fi
+  fi
 
 	# Is this a new-style test?
 	if [ -f "$applet.tests" ]; then
@@ -194,9 +201,9 @@ for applet in $applets; do
 		test $rc -ne 0 && status=1
 	fi
 
-  ## if [ x"$applet" != x"busybox" ]; then
-  ##     rm "$LINKSDIR/$applet"
-  ## fi
+  if [ x"$applet" != x"busybox" ]; then
+      rm "$LINKSDIR/$applet"
+  fi
 done
 
 # Leaving the dir makes it somewhat easier to run failed test by hand

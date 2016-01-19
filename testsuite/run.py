@@ -21,6 +21,14 @@ parser.add_argument('-vx',
         action='store_true',
         help='Run with Varan')
 
+parser.add_argument('-afl',
+        action='store_true',
+        help='Run with AFL')
+
+parser.add_argument('-afltest',
+        action='store_true',
+        help='Run tests generated through AFL')
+
 parser.add_argument('bbs',
         choices=busyboxes,
         nargs='+',
@@ -54,6 +62,18 @@ if args.vx:
 else:
     env['VX']  = '0'
     env['BBS'] = bbs[0]
+
+if args.afl:
+    env['AFL']  = '5'
+    env['VX']  = '0'
+    env['BBS'] = bbs[0]
+else:
+    env['AFL']  = '0'
+
+if args.afltest:
+    env['AFLTEST'] = '1'
+else:
+    env['AFLTEST'] = '0'
 
 env['BB']  = bbs[0]
 
