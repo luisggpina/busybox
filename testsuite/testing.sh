@@ -71,6 +71,14 @@ testing()
   NAME="$1"
   [ -n "$1" ] || NAME="$2"
 
+  # Escape spaces
+  ESCAPED=$(echo -ne "$NAME" | sed "s/ /_/g")
+
+  # Skip tests that do not use an input file
+  if [ x"$AFL" != x"0" ] && [ x"$4" = x"" ] ; then
+      return 0
+  fi
+
   if [ $# -ne 5 ]
   then
     echo "Test $NAME has wrong number of arguments: $# (must be 5)" >&2
@@ -85,23 +93,75 @@ testing()
     return 0
   fi
 
-  $ECHO -ne "$3" > expected
-  $ECHO -ne "$4" > input
+  rm -rf input input.tmp expected actual
+
+  if [ x"$AFLTEST" = x"1" ] && [ -e afl-results/$ESCAPED ] ; then
+    tests=$(find afl-results/$ESCAPED/queue -type f)
+  elif [ x"$AFLTEST" = x"0" ] ; then
+    $ECHO -ne "$4" > input.tmp
+    tests="input.tmp"
+  fi
+
   [ -z "$VERBOSE" ] || echo ======================
   [ -z "$VERBOSE" ] || echo "echo -ne '$4' >input"
   [ -z "$VERBOSE" ] || echo "echo -ne '$5' | $2"
-  $ECHO -ne "$5" | eval "$2" > actual
-  RETVAL=$?
 
-  if cmp expected actual >/dev/null 2>/dev/null
-  then
-    echo "PASS: $NAME"
-  else
-    FAILCOUNT=$(($FAILCOUNT + 1))
-    echo "FAIL: $NAME"
-    [ -z "$VERBOSE" ] || diff -u expected actual
+  for t in $tests
+  do
+
+    $ECHO -ne "$3" > expected
+    cat $t > input
+
+    if [ x"$AFL" != x"0" ]; then
+      # Replace input file name "input" with "@@"
+      # This way, afl generates better results
+      # This code may fail and break parameters, but that's ok
+      cmd=$(echo -ne "$2" | sed "s/ input\([^a-zA-Z0-9]\)/ @@\1/g")
+      echo $cmd
+      rm -rf afl-out
+      rm -rf afl-in
+      rm -rf "afl-out-$NAME"
+      mkdir afl-in
+      mkdir afl-out
+      ln input afl-in/input
+    else
+      cmd=$2
+    fi
+
+    $ECHO -ne "$5" | eval "$cmd" > actual
+    RETVAL=$?
+
+    if [ x"$AFLTEST" = x"1" ] ; then
+      echo "Ran AFL test: $t"
+    else
+      # Regular test
+      if [ x"$AFL" = x"0" ]; then
+        if cmp expected actual >/dev/null 2>/dev/null
+        then
+          echo "PASS: $NAME"
+        else
+          FAILCOUNT=$(($FAILCOUNT + 1))
+          echo "FAIL: $NAME"
+          [ -z "$VERBOSE" ] || diff -u expected actual
+        fi
+      else
+        echo -n "PASS: \"$NAME\" with "
+        echo -n `ls afl-out/queue | wc -l`
+        echo    " new tests"
+      fi
+    fi
+
+
+  done
+
+  rm -rf input.tmp input expected actual
+  if [ x"$AFL" != x"0" ]; then
+      mkdir afl-results &> /dev/null
+      rm -rf afl-in
+      rm -rf "afl-results/$ESCAPED"
+      mv afl-out "afl-results/$ESCAPED"
+      return 0
   fi
-  rm -f input expected actual
 
   [ -z "$DEBUG" ] || set +x
 
